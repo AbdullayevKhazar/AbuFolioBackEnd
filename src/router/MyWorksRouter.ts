@@ -12,8 +12,8 @@ const myWorksRoutes = Router();
 
 myWorksRoutes.get("/", getWorks);
 myWorksRoutes.get("/:id", getWork);
-myWorksRoutes.post("/add-work", upload.single("image"), addWork);
+myWorksRoutes.post("/add-work", upload.single("imageUrl"), addWork);
 myWorksRoutes.delete("/:id", deleteWork);
-myWorksRoutes.put("/:id", upload.single("image"), updateWork);
+myWorksRoutes.put("/:id", updateWork);
 
 export default myWorksRoutes;
