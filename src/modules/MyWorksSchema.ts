@@ -18,7 +18,7 @@ const MyWorksSchema = new Schema(
     mainImage: { type: String, required: true },
     publicId: { type: String, required: true },
     projectName: { type: String, required: true },
-    projectDetails: { type: String, required: true, maxLength: 200 },
+    projectDetails: { type: String, required: true, maxLength: 1000 },
     usingTech: { type: [String], required: true },
     projectLink: { type: String, required: true },
     githubLink: { type: String, required: false },

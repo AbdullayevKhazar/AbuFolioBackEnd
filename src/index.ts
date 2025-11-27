@@ -4,6 +4,8 @@ import cors from "cors";
 import skillsRoutes from "./router/SkillsRouter";
 import myWorksRoutes from "./router/MyWorksRouter";
 import authRoutes from "./router/AuthRoutes";
+import experienceRoutes from "./router/ExperiencesRouter";
+import educationRoutes from "./router/EducationsRouter";
 
 const app = express();
 app.use(cors());
@@ -14,6 +16,8 @@ const port = 8000;
 app.use("/api/skills", skillsRoutes);
 app.use("/api/my-works", myWorksRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/experience", experienceRoutes);
+app.use("/api/education", educationRoutes);
 
 main().catch((err) => console.log(err));
 

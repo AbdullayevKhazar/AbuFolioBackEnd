@@ -3,7 +3,6 @@ import MyWorks from "../modules/MyWorksSchema";
 import cloudinary from "../utils/cloudinary";
 import streamifier from "streamifier";
 
-// ✅ Get all works
 export const getWorks = async (req: Request, res: Response) => {
   try {
     const works = await MyWorks.find();
@@ -12,8 +11,6 @@ export const getWorks = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server Error", error });
   }
 };
-
-// ✅ Get one work
 export const getWork = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -38,7 +35,6 @@ export const addWork = async (req: Request, res: Response) => {
     let mainImage = "";
     let publicId = "";
 
-    // ✅ Upload to Cloudinary
     if (file) {
       const uploadToCloudinary = () =>
         new Promise((resolve, reject) => {
@@ -56,20 +52,15 @@ export const addWork = async (req: Request, res: Response) => {
       mainImage = result.secure_url;
       publicId = result.public_id;
     }
-
-    // ✅ usingTech güvenli parse
     let parsedUsingTech: string[] = [];
     try {
-      // frontend JSON.stringify ile gönderiyorsa:
       parsedUsingTech = usingTech ? JSON.parse(usingTech) : [];
     } catch {
-      // frontend düz string gönderiyorsa (ör: "React, Tailwind"):
       parsedUsingTech = usingTech
         ? usingTech.split(",").map((t: string) => t.trim())
         : [];
     }
 
-    // ✅ Yeni work oluştur
     const newWork = new MyWorks({
       mainImage,
       publicId,
@@ -112,13 +103,11 @@ export const deleteWork = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server Error", error });
   }
 };
-
-// ✅ Update work
 export const updateWork = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const file = req.file;
     const {
-      mainImage,
       projectName,
       projectDetails,
       usingTech,
@@ -127,26 +116,67 @@ export const updateWork = async (req: Request, res: Response) => {
       isLive,
     } = req.body;
 
+    if (!id) return res.status(400).json({ message: "Missing work ID" });
+
+    const existingWork = await MyWorks.findById(id);
+    if (!existingWork) {
+      return res.status(404).json({ message: "Work not found" });
+    }
+
+    let mainImage = existingWork.mainImage;
+    let publicId = existingWork.publicId;
+
+    if (file) {
+      if (existingWork.publicId) {
+        await cloudinary.uploader.destroy(existingWork.publicId);
+      }
+
+      const uploadToCloudinary = () =>
+        new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: "my_works" },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          );
+          streamifier.createReadStream(file.buffer).pipe(stream);
+        });
+
+      const result: any = await uploadToCloudinary();
+      mainImage = result.secure_url;
+      publicId = result.public_id;
+    }
+
+    // ✅ Parse technologies (can be JSON string or comma separated)
+    let parsedUsingTech: string[] = [];
+    try {
+      parsedUsingTech = usingTech ? JSON.parse(usingTech) : [];
+    } catch {
+      parsedUsingTech = usingTech
+        ? usingTech.split(",").map((t: string) => t.trim())
+        : [];
+    }
+
     const updatedWork = await MyWorks.findByIdAndUpdate(
       id,
       {
         mainImage,
+        publicId,
         projectName,
         projectDetails,
-        usingTech,
+        usingTech: parsedUsingTech,
         projectLink,
         githubLink,
         isLive,
       },
-      { new: true }
+      { new: true, runValidators: true }
     );
 
-    if (!updatedWork) {
-      return res.status(404).json({ message: "Work not found" });
-    }
-
     res.status(200).json(updatedWork);
-  } catch (error) {
-    res.status(500).json({ message: "Server Error", error });
+  } catch (error: any) {
+    console.error("❌ Update error:", error.message || error);
+    console.error(error.stack);
+    res.status(500).json({ message: "Server Error", error: error.message });
   }
 };
