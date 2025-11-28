@@ -10,9 +10,13 @@ import {
 const educationRoutes = express.Router();
 
 educationRoutes.get("/", getAllEducation);
-educationRoutes.post("/create-education", createEducation);
+
+educationRoutes.post("/", createEducation);
+
 educationRoutes.get("/:id", getEducationById);
-educationRoutes.put("/update/:id", updateEducation);
-educationRoutes.delete("/delete/:id", deleteEducation);
+
+educationRoutes.put("/:id", updateEducation);
+
+educationRoutes.delete("/:id", deleteEducation);
 
 export default educationRoutes;
