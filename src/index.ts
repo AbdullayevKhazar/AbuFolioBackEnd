@@ -11,7 +11,12 @@ import educationRoutes from "./router/EducationsRouter";
 dotenv.config();
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: "https://xab.net.az",
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 const port = process.env.PORT || 8000;
