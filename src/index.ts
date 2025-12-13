@@ -7,6 +7,7 @@ import myWorksRoutes from "./router/MyWorksRouter";
 import authRoutes from "./router/AuthRoutes";
 import experienceRoutes from "./router/ExperiencesRouter";
 import educationRoutes from "./router/EducationsRouter";
+import contactRoutes from "./router/ContactRoutes";
 
 dotenv.config();
 
@@ -29,6 +30,7 @@ app.use("/api/my-works", myWorksRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/experience", experienceRoutes);
 app.use("/api/education", educationRoutes);
+app.use("/api/contact", contactRoutes);
 
 app.get("/", (_req, res) => {
   res.status(200).send("API is running...");
