@@ -16,14 +16,12 @@ app.use(
   cors({
     origin: "https://xab.net.az",
     credentials: true,
-  })
+  }),
 );
 app.use(express.json());
 
 const port = process.env.PORT || 8000;
-const MONGO_URI =
-  process.env.MONGO_URI ||
-  "mongodb+srv://admin:admin@cluster0.igvqt.mongodb.net/?appName=Cluster0";
+const MONGO_URI = process.env.MONGO_URI;
 
 app.use("/api/skills", skillsRoutes);
 app.use("/api/my-works", myWorksRoutes);
@@ -39,6 +37,9 @@ app.get("/", (_req, res) => {
 main().catch((err) => console.log(err));
 
 async function main() {
+  if (!MONGO_URI) {
+    throw new Error("MONGO_URI is not set in environment variables.");
+  }
   await mongoose.connect(MONGO_URI);
   console.log("Connected to DB");
 }
