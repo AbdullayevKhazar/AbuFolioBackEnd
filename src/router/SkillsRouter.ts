@@ -1,4 +1,3 @@
-import upload from "../middleware/multer";
 import {
   addSkill,
   deleteSkills,
