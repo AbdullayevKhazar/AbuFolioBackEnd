@@ -3,6 +3,23 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import UserSchema from "../modules/UserSchema";
 
+const ACCESS_TOKEN_EXPIRES_IN = (process.env.ACCESS_TOKEN_EXPIRES_IN ||
+  "15m") as jwt.SignOptions["expiresIn"];
+const REFRESH_TOKEN_EXPIRES_IN = (process.env.REFRESH_TOKEN_EXPIRES_IN ||
+  "7d") as jwt.SignOptions["expiresIn"];
+
+const signAccessToken = (userId: string, role: string) =>
+  jwt.sign({ id: userId, role }, process.env.JWT_SECRET!, {
+    expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+  });
+
+const signRefreshToken = (userId: string, role: string) =>
+  jwt.sign(
+    { id: userId, role, type: "refresh" },
+    process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET!,
+    { expiresIn: REFRESH_TOKEN_EXPIRES_IN },
+  );
+
 export const register = async (req: Request, res: Response) => {
   try {
     const { username, email, password, role } = req.body;
@@ -39,32 +56,30 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    console.log("Login attempt:", { email });
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
+    }
 
     const user = await UserSchema.findOne({ email });
     if (!user) {
-      console.log("User not found");
       return res.status(404).json({ message: "User not found" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    console.log("Password match:", isMatch);
 
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
-    );
-
-    console.log("Token generated");
+    const accessToken = signAccessToken(String(user._id), user.role);
+    const refreshToken = signRefreshToken(String(user._id), user.role);
 
     res.status(200).json({
       message: "Login successful",
-      token,
+      accessToken,
+      refreshToken,
       user: {
         id: user._id,
         username: user.username,
@@ -73,7 +88,38 @@ export const login = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Login error:", error);
     res.status(500).json({ message: "Server error", error });
+  }
+};
+
+export const refreshAccessToken = async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({ message: "Refresh token is required" });
+    }
+
+    const decoded = jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET!,
+    ) as { id: string; role: string; type?: string };
+
+    if (decoded.type && decoded.type !== "refresh") {
+      return res.status(403).json({ message: "Invalid token type" });
+    }
+
+    const user = await UserSchema.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const accessToken = signAccessToken(String(user._id), user.role);
+
+    return res.status(200).json({ accessToken });
+  } catch (error) {
+    return res
+      .status(403)
+      .json({ message: "Invalid or expired refresh token" });
   }
 };
