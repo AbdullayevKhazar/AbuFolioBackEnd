@@ -4,13 +4,15 @@ const { Schema } = mongoose;
 interface Skills {
   name: string;
   description: string;
-  iconName: string;
+  imageUrl: string;
+  publicId: string;
 }
 
 const SkillsSchema = new Schema({
   name: { type: String, required: true },
   description: { type: String, required: true, maxLength: 100 },
-  iconName: { type: String, required: true },
+  imageUrl: { type: String, required: true },
+  publicId: { type: String, required: true },
 });
 
 export default mongoose.model<Skills>("Skills", SkillsSchema);
