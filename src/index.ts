@@ -8,17 +8,31 @@ import authRoutes from "./router/AuthRoutes";
 import experienceRoutes from "./router/ExperiencesRouter";
 import educationRoutes from "./router/EducationsRouter";
 import contactRoutes from "./router/ContactRoutes";
+import { ensureSuperAdmin } from "./utils/ensureSuperAdmin";
 
 dotenv.config();
 
 const app = express();
+const allowedOrigins = (
+  process.env.CORS_ORIGINS || "https://xab.net.az,http://localhost:5173"
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: "https://xab.net.az",
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Origin is not allowed by CORS"));
+    },
     credentials: true,
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 
 const port = process.env.PORT || 8000;
 const MONGO_URI = process.env.MONGO_URI;
@@ -34,16 +48,25 @@ app.get("/", (_req, res) => {
   res.status(200).send("API is running...");
 });
 
-main().catch((err) => console.log(err));
-
 async function main() {
   if (!MONGO_URI) {
     throw new Error("MONGO_URI is not set in environment variables.");
   }
+
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is not set in environment variables.");
+  }
+
   await mongoose.connect(MONGO_URI);
   console.log("Connected to DB");
+  await ensureSuperAdmin();
+
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
 }
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+main().catch((error) => {
+  console.error("Server failed to start:", error);
+  process.exit(1);
 });

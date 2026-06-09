@@ -2,6 +2,22 @@ import { Request, Response } from "express";
 import Skill from "../modules/SkillsSchema";
 import cloudinary from "../utils/cloudinary";
 import streamifier from "streamifier";
+import type { UploadApiResponse } from "cloudinary";
+
+const uploadSkillImage = (file: Express.Multer.File) =>
+  new Promise<UploadApiResponse>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: "skills" },
+      (error, result) => {
+        if (error || !result) {
+          reject(error || new Error("Cloudinary did not return a result"));
+        } else {
+          resolve(result);
+        }
+      },
+    );
+    streamifier.createReadStream(file.buffer).pipe(stream);
+  });
 
 export const getSkills = async (req: Request, res: Response) => {
   try {
@@ -23,32 +39,36 @@ export const getSkill = async (req: Request, res: Response) => {
 };
 export const addSkill = async (req: Request, res: Response) => {
   try {
-    const { name, description } = req.body;
+    const name = String(req.body.name || "").trim();
+    const description = String(req.body.description || "").trim();
+    const iconSlug = String(req.body.iconSlug || "").trim().toLowerCase();
+    const iconColor = String(req.body.iconColor || "")
+      .trim()
+      .replace("#", "")
+      .toUpperCase();
     const file = req.file;
 
-    if (!file) {
-      return res.status(400).json({ message: "Skill image is required" });
+    if (!name || !description) {
+      return res
+        .status(400)
+        .json({ message: "Skill name and description are required" });
     }
 
-    const uploadToCloudinary = () =>
-      new Promise<any>((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder: "skills" },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        );
-        streamifier.createReadStream(file.buffer).pipe(stream);
-      });
+    if (!file && !iconSlug) {
+      return res
+        .status(400)
+        .json({ message: "Select an icon or upload a custom image" });
+    }
 
-    const result = await uploadToCloudinary();
+    const result = file ? await uploadSkillImage(file) : null;
 
     const newSkill = new Skill({
       name,
       description,
-      imageUrl: result.secure_url,
-      publicId: result.public_id,
+      imageUrl: result?.secure_url,
+      publicId: result?.public_id,
+      iconSlug: result ? undefined : iconSlug,
+      iconColor: result ? undefined : iconColor || "111827",
     });
 
     const savedSkill = await newSkill.save();
@@ -81,7 +101,13 @@ export const deleteSkills = async (req: Request, res: Response) => {
 export const updateSkill = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, description } = req.body;
+    const name = String(req.body.name || "").trim();
+    const description = String(req.body.description || "").trim();
+    const iconSlug = String(req.body.iconSlug || "").trim().toLowerCase();
+    const iconColor = String(req.body.iconColor || "")
+      .trim()
+      .replace("#", "")
+      .toUpperCase();
     const file = req.file;
 
     const existingSkill = await Skill.findById(id);
@@ -91,27 +117,27 @@ export const updateSkill = async (req: Request, res: Response) => {
 
     let imageUrl = existingSkill.imageUrl;
     let publicId = existingSkill.publicId;
+    let selectedIconSlug = existingSkill.iconSlug;
+    let selectedIconColor = existingSkill.iconColor;
 
     if (file) {
       if (existingSkill.publicId) {
         await cloudinary.uploader.destroy(existingSkill.publicId);
       }
 
-      const uploadToCloudinary = () =>
-        new Promise<any>((resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            { folder: "skills" },
-            (error, result) => {
-              if (error) reject(error);
-              else resolve(result);
-            }
-          );
-          streamifier.createReadStream(file.buffer).pipe(stream);
-        });
-
-      const result = await uploadToCloudinary();
+      const result = await uploadSkillImage(file);
       imageUrl = result.secure_url;
       publicId = result.public_id;
+      selectedIconSlug = undefined;
+      selectedIconColor = undefined;
+    } else if (iconSlug) {
+      if (existingSkill.publicId) {
+        await cloudinary.uploader.destroy(existingSkill.publicId);
+      }
+      imageUrl = undefined;
+      publicId = undefined;
+      selectedIconSlug = iconSlug;
+      selectedIconColor = iconColor || "111827";
     }
 
     const updatedSkill = await Skill.findByIdAndUpdate(
@@ -121,6 +147,8 @@ export const updateSkill = async (req: Request, res: Response) => {
         description,
         imageUrl,
         publicId,
+        iconSlug: selectedIconSlug,
+        iconColor: selectedIconColor,
       },
       { new: true, runValidators: true }
     );

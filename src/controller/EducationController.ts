@@ -1,82 +1,140 @@
 import { Request, Response } from "express";
-// DİQQƏT: Modul yolunun (../modules/EducationSchema) düz olduğundan əmin olun!
 import Education from "../modules/EducationSchema";
+import { deleteImage, uploadImage } from "../utils/cloudinaryUpload";
 
-// CREATE
+const parseBoolean = (value: unknown) =>
+  value === true || value === "true" || value === "1";
+
 export const createEducation = async (req: Request, res: Response) => {
+  let uploadedPublicId = "";
+
   try {
-    // 'experience' əvəzinə 'newEducation' istifadə olunur
-    const newEducation = await Education.create(req.body);
-    res.status(201).json(newEducation);
-  } catch (error) {
-    // 'experience' əvəzinə 'education' istifadə olunur
-    res.status(500).json({ message: "Failed to create education", error });
+    let schoolImage: string | undefined;
+    let schoolImagePublicId: string | undefined;
+
+    if (req.file) {
+      const upload = await uploadImage(req.file, "portfolio/education", {
+        transformation: [
+          { width: 512, height: 512, crop: "limit" },
+          { quality: "auto", fetch_format: "auto" },
+        ],
+      });
+      schoolImage = upload.secure_url;
+      schoolImagePublicId = upload.public_id;
+      uploadedPublicId = upload.public_id;
+    }
+
+    const isCurrent = parseBoolean(req.body.isCurrent);
+    const education = await Education.create({
+      schoolName: String(req.body.schoolName || "").trim(),
+      degree: String(req.body.degree || "").trim() || undefined,
+      fieldOfStudy: String(req.body.fieldOfStudy || "").trim(),
+      startDate: req.body.startDate,
+      endDate: isCurrent ? undefined : req.body.endDate || undefined,
+      description: String(req.body.description || "").trim() || undefined,
+      schoolImage,
+      schoolImagePublicId,
+      isCurrent,
+    });
+
+    return res.status(201).json(education);
+  } catch {
+    await deleteImage(uploadedPublicId).catch(() => undefined);
+    return res
+      .status(500)
+      .json({ message: "Failed to create education" });
   }
 };
 
-// GET ALL
 export const getAllEducation = async (_req: Request, res: Response) => {
   try {
-    const data = await Education.find();
-    res.status(200).json(data);
-  } catch (error) {
-    res
+    const data = await Education.find().sort({ startDate: -1 });
+    return res.status(200).json(data);
+  } catch {
+    return res
       .status(500)
-      .json({ message: "Failed to fetch education records", error });
+      .json({ message: "Failed to fetch education records" });
   }
 };
 
-// GET ONE
 export const getEducationById = async (req: Request, res: Response) => {
   try {
     const education = await Education.findById(req.params.id);
     if (!education) {
-      // Mesaj düzəldildi
       return res.status(404).json({ message: "Education record not found" });
     }
-    res.status(200).json(education);
-  } catch (error) {
-    res
+    return res.status(200).json(education);
+  } catch {
+    return res
       .status(500)
-      .json({ message: "Failed to fetch education record", error });
+      .json({ message: "Failed to fetch education record" });
   }
 };
 
-// UPDATE
 export const updateEducation = async (req: Request, res: Response) => {
-  try {
-    const updated = await Education.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+  let uploadedPublicId = "";
 
-    if (!updated) {
+  try {
+    const education = await Education.findById(req.params.id);
+    if (!education) {
       return res.status(404).json({ message: "Education record not found" });
     }
 
-    res.status(200).json(updated);
-  } catch (error) {
-    res
+    const oldPublicId = education.schoolImagePublicId;
+    if (req.file) {
+      const upload = await uploadImage(req.file, "portfolio/education", {
+        transformation: [
+          { width: 512, height: 512, crop: "limit" },
+          { quality: "auto", fetch_format: "auto" },
+        ],
+      });
+      education.schoolImage = upload.secure_url;
+      education.schoolImagePublicId = upload.public_id;
+      uploadedPublicId = upload.public_id;
+    }
+
+    const isCurrent = parseBoolean(req.body.isCurrent);
+    education.schoolName = String(req.body.schoolName || "").trim();
+    education.degree = String(req.body.degree || "").trim() || undefined;
+    education.fieldOfStudy = String(req.body.fieldOfStudy || "").trim();
+    education.startDate = req.body.startDate;
+    education.endDate = isCurrent
+      ? undefined
+      : req.body.endDate || undefined;
+    education.description =
+      String(req.body.description || "").trim() || undefined;
+    education.isCurrent = isCurrent;
+    await education.save();
+
+    if (req.file) {
+      await deleteImage(oldPublicId).catch((error) =>
+        console.error("Failed to delete old education image:", error),
+      );
+    }
+    return res.status(200).json(education);
+  } catch {
+    await deleteImage(uploadedPublicId).catch(() => undefined);
+    return res
       .status(500)
-      .json({ message: "Failed to update education record", error });
+      .json({ message: "Failed to update education record" });
   }
 };
 
-// DELETE
 export const deleteEducation = async (req: Request, res: Response) => {
   try {
-    const deleted = await Education.findByIdAndDelete(req.params.id);
-
-    if (!deleted) {
-      // Mesaj düzəldildi
+    const education = await Education.findById(req.params.id);
+    if (!education) {
       return res.status(404).json({ message: "Education record not found" });
     }
 
-    // Mesaj düzəldildi
-    res.status(200).json({ message: "Education record deleted successfully" });
-  } catch (error) {
-    res
+    await deleteImage(education.schoolImagePublicId);
+    await education.deleteOne();
+    return res
+      .status(200)
+      .json({ message: "Education record deleted successfully" });
+  } catch {
+    return res
       .status(500)
-      .json({ message: "Failed to delete education record", error });
+      .json({ message: "Failed to delete education record" });
   }
 };

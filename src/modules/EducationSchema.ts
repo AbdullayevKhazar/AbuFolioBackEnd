@@ -9,6 +9,7 @@ interface Education {
   endDate?: Date;
   description?: string;
   schoolImage?: string;
+  schoolImagePublicId?: string;
   isCurrent?: boolean;
 }
 
@@ -21,6 +22,7 @@ const EducationSchema = new Schema<Education>(
     endDate: { type: Date },
     description: { type: String },
     schoolImage: { type: String },
+    schoolImagePublicId: { type: String },
     isCurrent: { type: Boolean, default: false },
   },
   { timestamps: true }
